@@ -24,9 +24,10 @@ app.get("/api/v1/monitors", (req, res) => {
 });
 
 app.post("/api/v1/monitors", (req, res) => {
-  const monitor = req.body;
+  // Retrieve host info.
+  const { name, url, type = "HTTP", port, freq = 60 } = req.body;
 
-  if (!monitor.name || !monitor.url) {
+  if (!name || !url) {
     res
       .status(400)
       .json({ success: false, error: "Name and URL are required." });
@@ -34,7 +35,7 @@ app.post("/api/v1/monitors", (req, res) => {
   }
 
   try {
-    insertMonitor(monitor);
+    insertMonitor({ name, url, type, port, freq });
     res.status(201).json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false });

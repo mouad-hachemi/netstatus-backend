@@ -15,6 +15,8 @@ const initDb = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name VARCHAR(64) NOT NULL,
       url VARCHAR(512) NOT NULL,
+      type VARCHAR(16) DEFAULT 'HTTP',
+      port INTEGER DEFAULT NULL,
       check_interval INTEGER DEFAULT 60
     );
 
@@ -22,7 +24,7 @@ const initDb = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       monitor_id INTEGER,
       status_code INTEGER,
-      latency_ms FLOAT NOT NULL,
+      latency_ms FLOAT,
       is_up BOOLEAN TRUE,
       timestamp INTEGER DEFAULT (unixepoch()),
       FOREIGN KEY (monitor_id) REFERENCES monitors(id)
@@ -41,8 +43,8 @@ const insertLogStmt = db.prepare(
 );
 
 const insertMonitorStms = db.prepare(
-  `INSERT INTO monitors (name, url, check_interval)
-  VALUES (?, ?, ?);`,
+  `INSERT INTO monitors (name, url, type, port, check_interval)
+  VALUES (?, ?, ?, ?, ?);`,
 );
 
 const selectMonitorsStmt = db.prepare("SELECT * FROM monitors;");
@@ -76,9 +78,17 @@ export const insertLog = ({
   );
 };
 
-export const insertMonitor = ({ name, url, freq = 60 }) => {
-  console.log(`New monitor: ${name} | ${url} | ${freq}`);
-  const result = insertMonitorStms.run(name, url, freq);
+export const insertMonitor = ({
+  name,
+  url,
+  type = "HTTP",
+  port = null,
+  freq = 60,
+}) => {
+  console.log(
+    `New monitor: ${name} | ${url} | ${type}:${port || "N/A"} | ${freq} |`,
+  );
+  const result = insertMonitorStms.run(name, url, type, port, freq);
 };
 
 export const getMonitors = () => {
