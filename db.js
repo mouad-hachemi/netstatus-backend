@@ -36,13 +36,26 @@ const initDb = () => {
 
 initDb();
 
-const insertStmt = db.prepare(
+const insertLogStmt = db.prepare(
   "INSERT INTO ping_logs (monitor_id, status_code, latency_ms, is_up) VALUES (?, ?, ?, ?);",
+);
+
+const insertMonitorStms = db.prepare(
+  `INSERT INTO monitors (name, url, check_interval)
+  VALUES (?, ?, ?);`,
 );
 
 const selectMonitorsStmt = db.prepare("SELECT * FROM monitors;");
 const selectLastRecordStmt = db.prepare(
   `SELECT timestamp FROM ping_logs
+  WHERE monitor_id = ?
+  ORDER BY timestamp DESC
+  LIMIT 1;
+  `,
+);
+const selectMonitorStatusStmt = db.prepare(
+  `SELECT AVG(latency_ms) OVER() AS avg_latency, is_up
+  FROM ping_logs
   WHERE monitor_id = ?
   ORDER BY timestamp DESC
   LIMIT 1;
@@ -55,7 +68,17 @@ export const insertLog = ({
   latencyMs,
   isUp,
 }) => {
-  const result = insertStmt.run(monitorId, statusCode, latencyMs, isUp ? 1 : 0);
+  const result = insertLogStmt.run(
+    monitorId,
+    statusCode,
+    latencyMs,
+    isUp ? 1 : 0,
+  );
+};
+
+export const insertMonitor = ({ name, url, freq = 60 }) => {
+  console.log(`New monitor: ${name} | ${url} | ${freq}`);
+  const result = insertMonitorStms.run(name, url, freq);
 };
 
 export const getMonitors = () => {
@@ -65,5 +88,10 @@ export const getMonitors = () => {
 
 export const getMonitorLastRecord = (monitor) => {
   const result = selectLastRecordStmt.get(monitor.id);
+  return result || {};
+};
+
+export const getMonitorStatus = (monitor) => {
+  const result = selectMonitorStatusStmt.get(monitor.id);
   return result || {};
 };

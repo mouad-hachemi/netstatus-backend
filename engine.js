@@ -1,8 +1,4 @@
-import {
-  insertLog,
-  getMonitors,
-  getMonitorLastRecord,
-} from "./db.js";
+import { insertLog, getMonitors, getMonitorLastRecord } from "./db.js";
 
 const checkHost = async (host) => {
   const startTime = Date.now();
@@ -47,8 +43,6 @@ const intervalId = setInterval(() => {
       // run check
       console.log(`Checking host: ${host.name}`);
       checkHost(host);
-    } else {
-      console.log(`Host ${host.name} is under refresh state.`);
     }
   }
 }, 1000);
