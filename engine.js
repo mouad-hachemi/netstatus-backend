@@ -144,9 +144,9 @@ const intervalId = setInterval(() => {
     // check if the interval between current time and last record is greater then check_intervale.
     const timestamp = record.timestamp;
     if (
-      !timestamp ||
-      (Date.now() - timestamp * 1000 > host.check_interval * 1000 &&
-        !hostsBeingChecked.has(host.id))
+      (!timestamp ||
+        Date.now() - timestamp * 1000 > host.check_interval * 1000) &&
+      !hostsBeingChecked.has(host.id)
     ) {
       // run check
       hostsBeingChecked.set(host.id, host.name);
