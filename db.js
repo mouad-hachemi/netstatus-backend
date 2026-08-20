@@ -64,6 +64,36 @@ const selectMonitorStatusStmt = db.prepare(
   `,
 );
 
+const selectMonitorsLogsStms = db.prepare(
+  `
+  SELECT status_code, latency_ms, is_up
+  FROM ping_logs
+  WHERE monitor_id = ?
+  ORDER BY timestamp DESC
+  LIMIT 50;
+  `,
+);
+
+const selectMonitorName = db.prepare(
+  `
+  SELECT name FROM monitors WHERE id = ?;
+  `,
+);
+
+const deleteMonitorStmt = db.prepare(
+  `
+  DELETE FROM monitors
+  WHERE id = ?;
+  `,
+);
+
+const deleteLogsStmt = db.prepare(
+  `
+  DELETE FROM ping_logs
+  WHERE monitor_id = ?;
+  `,
+);
+
 export const insertLog = ({
   monitorId = null,
   statusCode = null,
@@ -104,4 +134,17 @@ export const getMonitorLastRecord = (monitor) => {
 export const getMonitorStatus = (monitor) => {
   const result = selectMonitorStatusStmt.get(monitor.id);
   return result || {};
+};
+
+export const getMonitorLogs = (monitorId) => {
+  const name = selectMonitorName.get(monitorId)?.name;
+  const logs = selectMonitorsLogsStms.all(monitorId);
+  return { name, logs };
+};
+
+export const deleteMonitor = (monitorId) => {
+  const logsCount = deleteLogsStmt.run(monitorId)?.changes;
+  const monitorCount = deleteMonitorStmt.run(monitorId)?.changes;
+  // Return deleted rows count.
+  return { logs: logsCount, monitor: monitorCount };
 };

@@ -1,5 +1,11 @@
 import express from "express";
-import { getMonitors, getMonitorStatus, insertMonitor } from "./db.js";
+import {
+  deleteMonitor,
+  getMonitorLogs,
+  getMonitors,
+  getMonitorStatus,
+  insertMonitor,
+} from "./db.js";
 
 const app = express();
 const PORT = 8080;
@@ -38,6 +44,35 @@ app.post("/api/v1/monitors", (req, res) => {
     insertMonitor({ name, url, type, port, freq });
     res.status(201).json({ success: true });
   } catch (error) {
+    res.status(500).json({ success: false });
+  }
+});
+
+app.get("/api/v1/monitors/:id/logs", (req, res) => {
+  const monitorId = req.params.id;
+  try {
+    const { name, logs } = getMonitorLogs(monitorId);
+    if (!name) {
+      res.status(404).json({ success: false, error: "Monitor not found." });
+      return;
+    }
+    res.status(200).json({ success: true, name, logs });
+  } catch (error) {
+    res.status(500).json({ success: false });
+  }
+});
+
+app.delete("/api/v1/monitors/:id", (req, res) => {
+  const monitorId = req.params.id;
+  try {
+    const { logs, monitor } = deleteMonitor(monitorId);
+    if (monitor === 0) {
+      res.status(404).json({ success: false, error: "Monitor not found." });
+      return;
+    }
+    res.status(200).json({ success: true, logs, monitor });
+  } catch (error) {
+    console.log(error.message);
     res.status(500).json({ success: false });
   }
 });
