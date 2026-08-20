@@ -65,12 +65,12 @@ app.get("/api/v1/monitors/:id/logs", (req, res) => {
 app.delete("/api/v1/monitors/:id", (req, res) => {
   const monitorId = req.params.id;
   try {
-    const { logs, monitor } = deleteMonitor(monitorId);
-    if (monitor === 0) {
+    const count = deleteMonitor(monitorId);
+    if (count === 0) {
       res.status(404).json({ success: false, error: "Monitor not found." });
       return;
     }
-    res.status(200).json({ success: true, logs, monitor });
+    res.status(200).json({ success: true, count });
   } catch (error) {
     console.log(error.message);
     res.status(500).json({ success: false });

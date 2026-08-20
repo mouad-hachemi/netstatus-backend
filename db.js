@@ -27,7 +27,7 @@ const initDb = () => {
       latency_ms FLOAT,
       is_up BOOLEAN TRUE,
       timestamp INTEGER DEFAULT (unixepoch()),
-      FOREIGN KEY (monitor_id) REFERENCES monitors(id)
+      FOREIGN KEY (monitor_id) REFERENCES monitors(id) ON DELETE CASCADE
     );
     
     CREATE INDEX IF NOT EXISTS idx_ping_logs_monitor_time 
@@ -87,13 +87,6 @@ const deleteMonitorStmt = db.prepare(
   `,
 );
 
-const deleteLogsStmt = db.prepare(
-  `
-  DELETE FROM ping_logs
-  WHERE monitor_id = ?;
-  `,
-);
-
 export const insertLog = ({
   monitorId = null,
   statusCode = null,
@@ -143,8 +136,7 @@ export const getMonitorLogs = (monitorId) => {
 };
 
 export const deleteMonitor = (monitorId) => {
-  const logsCount = deleteLogsStmt.run(monitorId)?.changes;
-  const monitorCount = deleteMonitorStmt.run(monitorId)?.changes;
+  const count = deleteMonitorStmt.run(monitorId)?.changes;
   // Return deleted rows count.
-  return { logs: logsCount, monitor: monitorCount };
+  return count;
 };
