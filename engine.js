@@ -18,7 +18,10 @@ const checkTCPPort = (host, port, timeout = 3000) => {
 
     socket.on("timeout", () => {
       socket.destroy();
-      resolve({ isUp: false, latencyMs: null });
+      resolve({
+        latencyMs: null,
+        errorMessage: "Host Unreachable",
+      });
     });
 
     socket.on("error", (error) => {
@@ -62,9 +65,36 @@ const checkICMPPing = async (host, retries = 4) => {
   const latency = null;
   return {
     errorMsg: lastError?.message || "Host Unreachable",
-    isUp: false,
     latencyMs: latency,
   };
+};
+
+const checkHTTPService = async (host) => {
+  // Default HTTP test.
+  const startTime = Date.now();
+  let log = null;
+  try {
+    let targetURL = host.url;
+    if (!/^https?:\/\//i.test(targetURL)) {
+      targetURL = `http://${targetURL}`;
+    }
+    const response = await fetch(targetURL);
+    const latency = Date.now() - startTime;
+    log = {
+      monitorId: host.id,
+      statusCode: response.status,
+      latencyMs: latency,
+      isUp: response.ok,
+    };
+  } catch (error) {
+    const latency = null;
+    log = {
+      monitorId: host.id,
+      latencyMs: latency,
+      errorMsg: error.message,
+    };
+  }
+  return log;
 };
 
 const checkHost = async (host) => {
@@ -84,9 +114,6 @@ const checkHost = async (host) => {
       `Check results for host: ${host.name}`,
       `[${logResult.isUp ? "UP" : "DOWN"} - TCP] ${host.url}:${targetPort} | ${logResult.errorMsg ? `Error: ${logResult.errorMsg} | ` : ""} ${host.url} | Latency ${logResult.latencyMs}ms.`,
     );
-    insertLog(logResult);
-    hostsBeingChecked.delete(host.id);
-    broadcast(JSON.stringify(logResult));
   } else if (host.type == "ICMP") {
     // Perform ICMP ping test.
     const response = await checkICMPPing(host);
@@ -95,48 +122,18 @@ const checkHost = async (host) => {
       `Check results for host: ${host.name}`,
       `[${logResult.isUp ? "UP" : "DOWN"} - ICMP] | ${logResult.errorMsg ? `Error: ${logResult.errorMsg} | ` : ""} ${host.url} | Latency ${logResult.latencyMs}ms.`,
     );
-    insertLog(logResult);
-    hostsBeingChecked.delete(host.id);
-    broadcast(JSON.stringify(logResult));
   } else {
     // Default HTTP test.
-    const startTime = Date.now();
-    try {
-      let targetURL = host.url;
-      if (!/^https?:\/\//i.test(targetURL)) {
-        targetURL = `http://${targetURL}`;
-      }
-      const response = await fetch(targetURL);
-      const latency = Date.now() - startTime;
-      const log = {
-        monitorId: host.id,
-        statusCode: response.status,
-        latencyMs: latency,
-        isUp: response.ok,
-      };
-      console.log(
-        `Check results for host: ${host.name}`,
-        `[UP] ${host.url} | STATUS ${response.status} | Latency ${latency}ms.`,
-      );
-      insertLog(log);
-      hostsBeingChecked.delete(host.id);
-      broadcast(JSON.stringify(log));
-    } catch (error) {
-      const latency = null;
-      const log = {
-        monitorId: host.id,
-        latencyMs: latency,
-        isUp: false,
-      };
-      console.log(
-        `Check results for host: ${host.name}`,
-        `[DOWN] ${host.url} | Error: ${error.message} | Latency ${latency}ms.`,
-      );
-      insertLog(log);
-      hostsBeingChecked.delete(host.id);
-      broadcast(JSON.stringify(log));
-    }
+    const response = await checkHTTPService(host);
+    logResult = { ...logResult, ...response };
+    console.log(
+      `Check results for host: ${host.name}`,
+      `[${logResult.isUp ? "UP" : "DOWN"}] | ${logResult.errorMsg ? `Error: ${logResult.errorMsg} | ` : ""} ${host.url} | Latency ${logResult.latencyMs}ms.`,
+    );
   }
+  insertLog(logResult);
+  hostsBeingChecked.delete(host.id);
+  broadcast(JSON.stringify(logResult));
 };
 
 const hostsBeingChecked = new Map();
