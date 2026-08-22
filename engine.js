@@ -45,7 +45,14 @@ const checkICMPPing = async (host, retries = 4) => {
     : `ping -c 1 -W 2 ${host.url}`;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      await execAsync(command);
+      const { stdout } = await execAsync(command);
+      if (
+        stdout.includes("Destination host unreachable") ||
+        stdout.includes("Request timed out") ||
+        stdout.includes("100% loss")
+      ) {
+        throw new Error("Host Unreachable");
+      }
       const latency = Date.now() - startTime;
       return {
         isUp: true,
@@ -97,6 +104,43 @@ const checkHTTPService = async (host) => {
   return log;
 };
 
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const sendTelegramAlert = async (message) => {
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: message,
+        parse_mode: "Markdown",
+      }),
+    });
+  } catch (error) {
+    console.log(`Failed to send Telegram alert: ${error.message}`);
+  }
+};
+
+const previousStatuses = new Map();
+const outageAlertCheck = (isUp, host) => {
+  const hostLastStatus = previousStatuses.get(host.id);
+  if (hostLastStatus !== undefined && hostLastStatus !== isUp) {
+    // Host status changed, fire a notification.
+    if (!isUp) {
+      sendTelegramAlert(
+        `🚨 *OUTAGE ALERT*\nHost *${host.name}* (${host.url}) is **DOWN**!`,
+      );
+    } else {
+      sendTelegramAlert(
+        `✅ *RECOVERY NOTICE*\nHost *${host.name}* (${host.url}) is back **ONLINE**!`,
+      );
+    }
+  }
+  previousStatuses.set(host.id, isUp);
+};
+
 const checkHost = async (host) => {
   let logResult = {
     monitorId: host.id,
@@ -105,35 +149,41 @@ const checkHost = async (host) => {
     isUp: false,
   };
 
-  if (host.type === "TCP") {
-    // Perform TCP port check.
-    const targetPort = host.port || 80;
-    const response = await checkTCPPort(host.url, targetPort);
-    logResult = { ...logResult, ...response };
-    console.log(
-      `Check results for host: ${host.name}`,
-      `[${logResult.isUp ? "UP" : "DOWN"} - TCP] ${host.url}:${targetPort} | ${logResult.errorMsg ? `Error: ${logResult.errorMsg} | ` : ""} ${host.url} | Latency ${logResult.latencyMs}ms.`,
-    );
-  } else if (host.type == "ICMP") {
-    // Perform ICMP ping test.
-    const response = await checkICMPPing(host);
-    logResult = { ...logResult, ...response };
-    console.log(
-      `Check results for host: ${host.name}`,
-      `[${logResult.isUp ? "UP" : "DOWN"} - ICMP] | ${logResult.errorMsg ? `Error: ${logResult.errorMsg} | ` : ""} ${host.url} | Latency ${logResult.latencyMs}ms.`,
-    );
-  } else {
-    // Default HTTP test.
-    const response = await checkHTTPService(host);
-    logResult = { ...logResult, ...response };
-    console.log(
-      `Check results for host: ${host.name}`,
-      `[${logResult.isUp ? "UP" : "DOWN"}] | ${logResult.errorMsg ? `Error: ${logResult.errorMsg} | ` : ""} ${host.url} | Latency ${logResult.latencyMs}ms.`,
-    );
+  try {
+    if (host.type === "TCP") {
+      // Perform TCP port check.
+      const targetPort = host.port || 80;
+      const response = await checkTCPPort(host.url, targetPort);
+      logResult = { ...logResult, ...response };
+      console.log(
+        `Check results for host: ${host.name}`,
+        `[${logResult.isUp ? "UP" : "DOWN"} - TCP] ${host.url}:${targetPort} | ${logResult.errorMsg ? `Error: ${logResult.errorMsg} | ` : ""} ${host.url} | Latency ${logResult.latencyMs}ms.`,
+      );
+    } else if (host.type == "ICMP") {
+      // Perform ICMP ping test.
+      const response = await checkICMPPing(host);
+      logResult = { ...logResult, ...response };
+      console.log(
+        `Check results for host: ${host.name}`,
+        `[${logResult.isUp ? "UP" : "DOWN"} - ICMP] | ${logResult.errorMsg ? `Error: ${logResult.errorMsg} | ` : ""} ${host.url} | Latency ${logResult.latencyMs}ms.`,
+      );
+    } else {
+      // Default HTTP test.
+      const response = await checkHTTPService(host);
+      logResult = { ...logResult, ...response };
+      console.log(
+        `Check results for host: ${host.name}`,
+        `[${logResult.isUp ? "UP" : "DOWN"}] | ${logResult.errorMsg ? `Error: ${logResult.errorMsg} | ` : ""} ${host.url} | Latency ${logResult.latencyMs}ms.`,
+      );
+    }
+    insertLog(logResult);
+    broadcast(JSON.stringify(logResult));
+    outageAlertCheck(logResult.isUp, host);
+  } catch (error) {
+    console.log(`Error checking host: ${host.name}`, error.message);
+  } finally {
+    hostsBeingChecked.delete(host.id);
   }
-  insertLog(logResult);
-  hostsBeingChecked.delete(host.id);
-  broadcast(JSON.stringify(logResult));
 };
 
 const hostsBeingChecked = new Map();
