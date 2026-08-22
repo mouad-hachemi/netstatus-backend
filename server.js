@@ -6,10 +6,23 @@ import {
   getMonitorStatus,
   insertMonitor,
 } from "./db.js";
+import http from "node:http";
+import { WebSocketServer, WebSocket } from "ws";
 
 const app = express();
 const PORT = 8080;
 app.use(express.json());
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+export const broadcast = (data, isBinary = false) => {
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data, { binary: isBinary });
+    }
+  });
+};
 
 app.get("/", (req, res) => {
   res.status(200).json({
@@ -77,6 +90,20 @@ app.delete("/api/v1/monitors/:id", (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+wss.on("connection", (ws) => {
+  console.log("New client connected.");
+  ws.send("Welcome to the room!");
+
+  ws.on("message", (message) => {
+    console.log(`Received: ${message}`);
+    ws.send(`Server received: ${message}`);
+  });
+
+  ws.on("close", () => {
+    console.log("Client disconnected.");
+  });
+});
+
+server.listen(PORT, () => {
   console.log(`Server is running on: http://localhost:${PORT}`);
 });

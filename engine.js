@@ -1,4 +1,5 @@
 import { insertLog, getMonitors, getMonitorLastRecord } from "./db.js";
+import { broadcast } from "./server.js";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import net from "node:net";
@@ -85,6 +86,7 @@ const checkHost = async (host) => {
     );
     insertLog(logResult);
     hostsBeingChecked.delete(host.id);
+    broadcast(JSON.stringify(logResult));
   } else if (host.type == "ICMP") {
     // Perform ICMP ping test.
     const response = await checkICMPPing(host);
@@ -95,6 +97,7 @@ const checkHost = async (host) => {
     );
     insertLog(logResult);
     hostsBeingChecked.delete(host.id);
+    broadcast(JSON.stringify(logResult));
   } else {
     // Default HTTP test.
     const startTime = Date.now();
@@ -117,6 +120,7 @@ const checkHost = async (host) => {
       );
       insertLog(log);
       hostsBeingChecked.delete(host.id);
+      broadcast(JSON.stringify(log));
     } catch (error) {
       const latency = null;
       const log = {
@@ -130,6 +134,7 @@ const checkHost = async (host) => {
       );
       insertLog(log);
       hostsBeingChecked.delete(host.id);
+      broadcast(JSON.stringify(log));
     }
   }
 };
