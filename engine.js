@@ -115,7 +115,7 @@ const sendTelegramAlert = async (message) => {
       body: JSON.stringify({
         chat_id: TELEGRAM_CHAT_ID,
         text: message,
-        parse_mode: "Markdown",
+        parse_mode: "HTML",
       }),
     });
   } catch (error) {
@@ -126,15 +126,19 @@ const sendTelegramAlert = async (message) => {
 const previousStatuses = new Map();
 const outageAlertCheck = (isUp, host) => {
   const hostLastStatus = previousStatuses.get(host.id);
-  if (hostLastStatus !== undefined && hostLastStatus !== isUp) {
+  if (hostLastStatus === undefined && !isUp) {
+    sendTelegramAlert(
+      `🚨 <i>OUTAGE ALERT</i>\nHost <b>${host.name}</b> (${host.url}) is <strong>DOWN</strong>!`,
+    );
+  } else if (hostLastStatus !== undefined && hostLastStatus !== isUp) {
     // Host status changed, fire a notification.
     if (!isUp) {
       sendTelegramAlert(
-        `🚨 *OUTAGE ALERT*\nHost *${host.name}* (${host.url}) is **DOWN**!`,
+        `🚨 <i>OUTAGE ALERT</i>\nHost <b>${host.name}</b> (${host.url}) is <strong>DOWN</strong>!`,
       );
     } else {
       sendTelegramAlert(
-        `✅ *RECOVERY NOTICE*\nHost *${host.name}* (${host.url}) is back **ONLINE**!`,
+        `✅ <i>RECOVERY NOTICE</i>\nHost <b>${host.name}</b> (${host.url}) is back <b>ONLINE</b>!`,
       );
     }
   }
