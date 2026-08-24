@@ -1,9 +1,13 @@
 import express from "express";
 import {
+  deleteAlertRecipient,
   deleteMonitor,
+  getAlertRecipients,
   getMonitorLogs,
   getMonitors,
   getMonitorStatus,
+  getSingleAlertRecipient,
+  insertAlertRecipient,
   insertMonitor,
 } from "./db.js";
 import http from "node:http";
@@ -81,6 +85,50 @@ app.delete("/api/v1/monitors/:id", (req, res) => {
     const count = deleteMonitor(monitorId);
     if (count === 0) {
       res.status(404).json({ success: false, error: "Monitor not found." });
+      return;
+    }
+    res.status(200).json({ success: true, count });
+  } catch (error) {
+    console.log(error.message);
+    res.status(500).json({ success: false });
+  }
+});
+
+app.get("/api/v1/recipients", (req, res) => {
+  try {
+    const recipients = getAlertRecipients();
+    res.status(200).json({ success: true, recipients });
+  } catch (error) {
+    console.log(error.message);
+    res.status(500).json({ success: false });
+  }
+});
+
+app.post("/api/v1/recipients", (req, res) => {
+  try {
+    const { name, chat_id: chatId } = req.body;
+    // Check if recipient already exists.
+    const recipient = getSingleAlertRecipient(chatId);
+    if (recipient) {
+      res
+        .status(422)
+        .json({ success: false, error: "Recipient already exists." });
+      return;
+    }
+    insertAlertRecipient({ name, chatId });
+    res.status(201).json({ success: true });
+  } catch (error) {
+    console.log(error.message);
+    res.status(500).json({ success: false });
+  }
+});
+
+app.delete("/api/v1/recipients/:id", (req, res) => {
+  try {
+    const id = req.params.id;
+    const count = deleteAlertRecipient(id);
+    if (count === 0) {
+      res.status(404).json({ success: false, error: "Recipient not found." });
       return;
     }
     res.status(200).json({ success: true, count });

@@ -1,4 +1,10 @@
-import { insertLog, getMonitors, getMonitorLastRecord } from "./db.js";
+import {
+  insertLog,
+  getMonitors,
+  getMonitorLastRecord,
+  getAlertRecipients,
+} from "./db.js";
+import { fetchWithRetry } from "./utils.js";
 import { broadcast } from "./server.js";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
@@ -105,22 +111,25 @@ const checkHTTPService = async (host) => {
 };
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const sendTelegramAlert = async (message) => {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.log("Telegram alert skipped: TELEGRAM_BOT_TOKEN not set.");
+    return;
+  }
+  const recipients = getAlertRecipients();
   const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-  try {
-    await fetch(url, {
+  let requests = recipients.map((recipient) =>
+    fetchWithRetry(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
+        chat_id: recipient.chat_id,
         text: message,
         parse_mode: "HTML",
       }),
-    });
-  } catch (error) {
-    console.log(`Failed to send Telegram alert: ${error.message}`);
-  }
+    }),
+  );
+  const responses = await Promise.allSettled(requests);
 };
 
 const previousStatuses = new Map();
