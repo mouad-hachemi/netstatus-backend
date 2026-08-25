@@ -16,6 +16,7 @@ import { authenticatToken } from "./middleware/auth.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import http from "node:http";
+import url from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
 
 const app = express();
@@ -197,17 +198,38 @@ app.post("/api/v1/auth/login", async (req, res) => {
   }
 });
 
-wss.on("connection", (ws) => {
-  console.log("New client connected.");
-  ws.send("Welcome to the room!");
+wss.on("connection", (ws, req) => {
+  const pathname = url.parse(req.url, true);
+  const token = pathname.query?.token;
+
+  if (!token) {
+    console.log("WebSocket connection rejected: No token provided.");
+    ws.close(4001, "Authentication token required.");
+    return;
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, decodedUser) => {
+    if (err) {
+      console.log("WebSocket connection rejected: Invalid or expired token.");
+      ws.close(4003, "Invalid or expired token.");
+      return;
+    }
+
+    ws.user = decodedUser;
+    console.log(`Authenticated client connected: ${decodedUser.username}`);
+
+    ws.send(
+      JSON.stringify({ type: "SYSTEM", message: "Authenticated successfully" }),
+    );
+  });
 
   ws.on("message", (message) => {
-    console.log(`Received: ${message}`);
-    ws.send(`Server received: ${message}`);
+    console.log(`Received from: ${ws.user?.username}: ${message}`);
+    ws.send(`${ws.user?.username} message received.`);
   });
 
   ws.on("close", () => {
-    console.log("Client disconnected.");
+    console.log(`Session terminating for: ${ws.user?.username}`);
   });
 });
 
