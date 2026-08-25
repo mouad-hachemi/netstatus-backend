@@ -11,6 +11,12 @@ const initDb = () => {
     `
     PRAGMA foreign_keys = ON;
 
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username VARCHAR(32) NOT NULL UNIQUE,
+      password_hash VARCHAR(255) NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS monitors (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name VARCHAR(64) NOT NULL,
@@ -93,9 +99,7 @@ const deleteMonitorStmt = db.prepare(
   `,
 );
 
-const selectAlertRecipientStmt = db.prepare(
-  "SELECT * FROM alert_recipients;",
-);
+const selectAlertRecipientStmt = db.prepare("SELECT * FROM alert_recipients;");
 
 const selectSingleAlertRecipientByChatId = db.prepare(
   "SELECT name FROM alert_recipients WHERE chat_id = ?;",
@@ -112,6 +116,14 @@ const deleteAlertRecipientStmt = db.prepare(
   DELETE FROM alert_recipients
   WHERE id = ?;
   `,
+);
+
+const insertUserStmt = db.prepare(
+  `INSERT INTO users (username, password_hash) VALUES (?, ?);`,
+);
+
+const selectUserByUsernameStmt = db.prepare(
+  `SELECT * FROM users WHERE username = ?;`,
 );
 
 export const insertLog = ({
@@ -188,4 +200,14 @@ export const insertAlertRecipient = ({ name, chatId }) => {
 export const deleteAlertRecipient = (id) => {
   const result = deleteAlertRecipientStmt.run(id);
   return result.changes;
+};
+
+export const createUser = ({ username, hashedPassword }) => {
+  const result = insertUserStmt.run(username, hashedPassword);
+  return result.changes;
+};
+
+export const getUserByUsername = (username) => {
+  const result = selectUserByUsernameStmt.get(username);
+  return result;
 };

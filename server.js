@@ -7,9 +7,14 @@ import {
   getMonitors,
   getMonitorStatus,
   getSingleAlertRecipient,
+  getUserByUsername,
+  createUser,
   insertAlertRecipient,
   insertMonitor,
 } from "./db.js";
+import { authenticatToken } from "./middleware/auth.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import http from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 
@@ -35,7 +40,7 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/api/v1/monitors", (req, res) => {
+app.get("/api/v1/monitors", authenticatToken, (req, res) => {
   // List all targets with their current status and average response.
   const hosts = getMonitors();
   const summary = {};
@@ -46,7 +51,7 @@ app.get("/api/v1/monitors", (req, res) => {
   res.status(200).json(summary);
 });
 
-app.post("/api/v1/monitors", (req, res) => {
+app.post("/api/v1/monitors", authenticatToken, (req, res) => {
   // Retrieve host info.
   const { name, url, type = "HTTP", port, freq = 60 } = req.body;
 
@@ -65,7 +70,7 @@ app.post("/api/v1/monitors", (req, res) => {
   }
 });
 
-app.get("/api/v1/monitors/:id/logs", (req, res) => {
+app.get("/api/v1/monitors/:id/logs", authenticatToken, (req, res) => {
   const monitorId = req.params.id;
   try {
     const { name, logs } = getMonitorLogs(monitorId);
@@ -79,7 +84,7 @@ app.get("/api/v1/monitors/:id/logs", (req, res) => {
   }
 });
 
-app.delete("/api/v1/monitors/:id", (req, res) => {
+app.delete("/api/v1/monitors/:id", authenticatToken, (req, res) => {
   const monitorId = req.params.id;
   try {
     const count = deleteMonitor(monitorId);
@@ -94,7 +99,7 @@ app.delete("/api/v1/monitors/:id", (req, res) => {
   }
 });
 
-app.get("/api/v1/recipients", (req, res) => {
+app.get("/api/v1/recipients", authenticatToken, (req, res) => {
   try {
     const recipients = getAlertRecipients();
     res.status(200).json({ success: true, recipients });
@@ -104,7 +109,7 @@ app.get("/api/v1/recipients", (req, res) => {
   }
 });
 
-app.post("/api/v1/recipients", (req, res) => {
+app.post("/api/v1/recipients", authenticatToken, (req, res) => {
   try {
     const { name, chat_id: chatId } = req.body;
     // Check if recipient already exists.
@@ -123,7 +128,7 @@ app.post("/api/v1/recipients", (req, res) => {
   }
 });
 
-app.delete("/api/v1/recipients/:id", (req, res) => {
+app.delete("/api/v1/recipients/:id", authenticatToken, (req, res) => {
   try {
     const id = req.params.id;
     const count = deleteAlertRecipient(id);
@@ -135,6 +140,60 @@ app.delete("/api/v1/recipients/:id", (req, res) => {
   } catch (error) {
     console.log(error.message);
     res.status(500).json({ success: false });
+  }
+});
+
+const JWT_SECRET = process.env.JWT_SECRET || "you-cant-guess-this";
+
+app.post("/api/v1/auth/register", async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res
+      .status(400)
+      .json({ success: false, error: "Username and password required" });
+  }
+
+  try {
+    const existing = getUserByUsername(username);
+    if (existing) {
+      return res
+        .status(422)
+        .json({ success: false, error: "Username already taken" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    createUser({ username, hashedPassword });
+    res.status(201).json({ success: true, message: "User created" });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// HELPER route (to be deleted).
+app.post("/api/v1/auth/login", async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const user = getUserByUsername(username);
+    if (!user) {
+      return res
+        .status(401)
+        .json({ success: false, error: "Invalid credentials." });
+    }
+
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+    if (!validPassword) {
+      return res
+        .status(401)
+        .json({ success: false, error: "Invalid credentials." });
+    }
+    const token = jwt.sign(
+      { userId: user.id, username: user.username },
+      JWT_SECRET,
+      { expiresIn: "24h" },
+    );
+    res.status(200).json({ success: true, token });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
