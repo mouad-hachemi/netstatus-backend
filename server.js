@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import {
   deleteAlertRecipient,
   deleteMonitor,
@@ -22,6 +23,17 @@ import { WebSocketServer, WebSocket } from "ws";
 const app = express();
 const PORT = 8080;
 app.use(express.json());
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      } else {
+        callback(new Error("Blocked by CORS policy."));
+      }
+    },
+  }),
+);
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
