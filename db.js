@@ -14,7 +14,8 @@ const initDb = () => {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username VARCHAR(32) NOT NULL UNIQUE,
-      password_hash VARCHAR(255) NOT NULL
+      password_hash VARCHAR(255) NOT NULL,
+      chat_id VARCHAR(64) UNIQUE NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS monitors (
@@ -34,12 +35,6 @@ const initDb = () => {
       is_up BOOLEAN TRUE,
       timestamp INTEGER DEFAULT (unixepoch()),
       FOREIGN KEY (monitor_id) REFERENCES monitors(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS alert_recipients (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name VARCHAR(64) NOT NULL,
-      chat_id VARCHAR(64) NOT NULL UNIQUE
     );
     
     CREATE INDEX IF NOT EXISTS idx_ping_logs_monitor_time 
@@ -99,32 +94,23 @@ const deleteMonitorStmt = db.prepare(
   `,
 );
 
-const selectAlertRecipientStmt = db.prepare("SELECT * FROM alert_recipients;");
+const selectAlertRecipientStmt = db.prepare(
+  "SELECT username, chat_id FROM users;",
+);
 
 const selectSingleAlertRecipientByChatId = db.prepare(
-  "SELECT name FROM alert_recipients WHERE chat_id = ?;",
-);
-
-const insertAlertRecipientStmt = db.prepare(
-  `
-  INSERT INTO alert_recipients (name, chat_id)
-  VALUES (?, ?);
-  `,
-);
-const deleteAlertRecipientStmt = db.prepare(
-  `
-  DELETE FROM alert_recipients
-  WHERE id = ?;
-  `,
+  "SELECT username AS name FROM users WHERE chat_id = ?;",
 );
 
 const insertUserStmt = db.prepare(
-  `INSERT INTO users (username, password_hash) VALUES (?, ?);`,
+  `INSERT INTO users (username, password_hash, chat_id) VALUES (?, ?, ?);`,
 );
 
 const selectUserByUsernameStmt = db.prepare(
   `SELECT * FROM users WHERE username = ?;`,
 );
+
+const selectUserById = db.prepare(`SELECT * FROM users WHERE id = ?;`);
 
 export const insertLog = ({
   monitorId = null,
@@ -186,28 +172,17 @@ export const getAlertRecipients = () => {
   return result;
 };
 
-export const getSingleAlertRecipient = (chatId) => {
-  const result = selectSingleAlertRecipientByChatId.get(chatId);
-  return result;
-};
-
-export const insertAlertRecipient = ({ name, chatId }) => {
-  console.log(`New alert recipient added: ${name}:${chatId}`);
-  const result = insertAlertRecipientStmt.run(name, chatId);
-  return result.changes;
-};
-
-export const deleteAlertRecipient = (id) => {
-  const result = deleteAlertRecipientStmt.run(id);
-  return result.changes;
-};
-
-export const createUser = ({ username, hashedPassword }) => {
-  const result = insertUserStmt.run(username, hashedPassword);
+export const createUser = ({ username, hashedPassword, chatId = null }) => {
+  const result = insertUserStmt.run(username, hashedPassword, chatId);
   return result.changes;
 };
 
 export const getUserByUsername = (username) => {
   const result = selectUserByUsernameStmt.get(username);
+  return result;
+};
+
+export const getUserById = (id) => {
+  const result = selectUserById.get(id);
   return result;
 };

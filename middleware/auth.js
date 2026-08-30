@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { getUserById } from "../db.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "you-cant-guess-this";
 
@@ -13,11 +14,12 @@ export const authenticatToken = (req, res, next) => {
   }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
+    if (err || !getUserById(user.userId)) {
       return res
         .status(403)
         .json({ success: false, error: "Invalid or expired token" });
     }
+
     req.user = user;
     next();
   });

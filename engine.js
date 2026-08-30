@@ -6,7 +6,7 @@ import {
 } from "./db.js";
 import { fetchWithRetry } from "./utils.js";
 import { broadcast } from "./server.js";
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import net from "node:net";
 
@@ -39,19 +39,20 @@ const checkTCPPort = (host, port, timeout = 3000) => {
   });
 };
 
-const execAsync = promisify(exec);
+// Using execFile instead exec to prevent shell command injection.
+const execFileAsync = promisify(execFile);
 const checkICMPPing = async (host, retries = 4) => {
   const isWin = process.platform === "win32";
 
   const startTime = Date.now();
   let lastError = null;
 
-  const command = isWin
-    ? `ping -n 1 -w 2000 ${host.url}`
-    : `ping -c 1 -W 2 ${host.url}`;
+  const args = isWin
+    ? ["-n", "1", "-w", "2000", host.url]
+    : ["-c", "1", "-W", "2", host.url];
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const { stdout } = await execAsync(command);
+      const { stdout } = await execFileAsync("ping", args);
       if (
         stdout.includes("Destination host unreachable") ||
         stdout.includes("Request timed out") ||

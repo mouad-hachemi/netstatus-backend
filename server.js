@@ -1,17 +1,15 @@
 import express from "express";
 import cors from "cors";
 import {
-  deleteAlertRecipient,
   deleteMonitor,
   getAlertRecipients,
   getMonitorLogs,
   getMonitors,
   getMonitorStatus,
-  getSingleAlertRecipient,
   getUserByUsername,
   createUser,
-  insertAlertRecipient,
   insertMonitor,
+  getUserById,
 } from "./db.js";
 import { authenticatToken } from "./middleware/auth.js";
 import bcrypt from "bcryptjs";
@@ -40,6 +38,21 @@ const wss = new WebSocketServer({ server });
 
 export const broadcast = (data, isBinary = false) => {
   wss.clients.forEach((client) => {
+    const userExists = getUserById(client.user?.userId);
+    const token = client.user?.token;
+
+    if (!userExists || !token) {
+      client.close(4003, "Invalid or expired token.");
+      return;
+    }
+
+    try {
+      jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      client.close(4003, "Invalid or expired token.");
+      return;
+    }
+
     if (client.readyState === WebSocket.OPEN) {
       client.send(data, { binary: isBinary });
     }
@@ -122,44 +135,10 @@ app.get("/api/v1/recipients", authenticatToken, (req, res) => {
   }
 });
 
-app.post("/api/v1/recipients", authenticatToken, (req, res) => {
-  try {
-    const { name, chat_id: chatId } = req.body;
-    // Check if recipient already exists.
-    const recipient = getSingleAlertRecipient(chatId);
-    if (recipient) {
-      res
-        .status(422)
-        .json({ success: false, error: "Recipient already exists." });
-      return;
-    }
-    insertAlertRecipient({ name, chatId });
-    res.status(201).json({ success: true });
-  } catch (error) {
-    console.log(error.message);
-    res.status(500).json({ success: false });
-  }
-});
-
-app.delete("/api/v1/recipients/:id", authenticatToken, (req, res) => {
-  try {
-    const id = req.params.id;
-    const count = deleteAlertRecipient(id);
-    if (count === 0) {
-      res.status(404).json({ success: false, error: "Recipient not found." });
-      return;
-    }
-    res.status(200).json({ success: true, count });
-  } catch (error) {
-    console.log(error.message);
-    res.status(500).json({ success: false });
-  }
-});
-
 const JWT_SECRET = process.env.JWT_SECRET || "you-cant-guess-this";
 
 app.post("/api/v1/auth/register", async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, chat_id: chatId } = req.body;
   if (!username || !password) {
     return res
       .status(400)
@@ -175,7 +154,7 @@ app.post("/api/v1/auth/register", async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    createUser({ username, hashedPassword });
+    createUser({ username, hashedPassword, chatId });
     res.status(201).json({ success: true, message: "User created" });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -221,13 +200,14 @@ wss.on("connection", (ws, req) => {
   }
 
   jwt.verify(token, JWT_SECRET, (err, decodedUser) => {
-    if (err) {
+    if (err || !getUserById(decodedUser.userId)) {
       console.log("WebSocket connection rejected: Invalid or expired token.");
       ws.close(4003, "Invalid or expired token.");
       return;
     }
 
     ws.user = decodedUser;
+    ws.user.token = token;
     console.log(`Authenticated client connected: ${decodedUser.username}`);
 
     ws.send(
