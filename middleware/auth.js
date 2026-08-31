@@ -3,7 +3,7 @@ import { getUserById } from "../db.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "you-cant-guess-this";
 
-export const authenticatToken = (req, res, next) => {
+export const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
 

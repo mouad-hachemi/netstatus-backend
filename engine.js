@@ -1,159 +1,9 @@
-import {
-  insertLog,
-  getMonitors,
-  getMonitorLastRecord,
-  getAlertRecipients,
-} from "./db.js";
-import { fetchWithRetry } from "./utils.js";
-import { broadcast } from "./server.js";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import net from "node:net";
-
-const checkTCPPort = (host, port, timeout = 3000) => {
-  return new Promise((resolve) => {
-    const startTime = Date.now();
-    const socket = new net.Socket();
-    socket.setTimeout(timeout);
-
-    socket.on("connect", () => {
-      const latency = Date.now() - startTime;
-      socket.destroy();
-      resolve({ isUp: true, latencyMs: latency });
-    });
-
-    socket.on("timeout", () => {
-      socket.destroy();
-      resolve({
-        latencyMs: null,
-        errorMessage: "Host Unreachable",
-      });
-    });
-
-    socket.on("error", (error) => {
-      socket.destroy();
-      resolve({ errorMsg: error.message, isUp: false, latencyMs: null });
-    });
-
-    socket.connect(port, host);
-  });
-};
-
-// Using execFile instead exec to prevent shell command injection.
-const execFileAsync = promisify(execFile);
-const checkICMPPing = async (host, retries = 4) => {
-  const isWin = process.platform === "win32";
-
-  const startTime = Date.now();
-  let lastError = null;
-
-  const args = isWin
-    ? ["-n", "1", "-w", "2000", host.url]
-    : ["-c", "1", "-W", "2", host.url];
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const { stdout } = await execFileAsync("ping", args);
-      if (
-        stdout.includes("Destination host unreachable") ||
-        stdout.includes("Request timed out") ||
-        stdout.includes("100% loss")
-      ) {
-        throw new Error("Host Unreachable");
-      }
-      const latency = Date.now() - startTime;
-      return {
-        isUp: true,
-        latencyMs: latency,
-      };
-    } catch (error) {
-      lastError = error;
-      if (attempt < retries) {
-        await new Promise((resolve) => {
-          setTimeout(resolve, 200);
-        });
-      }
-    }
-  }
-
-  // All attempts failed.
-  const latency = null;
-  return {
-    errorMsg: lastError?.message || "Host Unreachable",
-    latencyMs: latency,
-  };
-};
-
-const checkHTTPService = async (host) => {
-  // Default HTTP test.
-  const startTime = Date.now();
-  let log = null;
-  try {
-    let targetURL = host.url;
-    if (!/^https?:\/\//i.test(targetURL)) {
-      targetURL = `http://${targetURL}`;
-    }
-    const response = await fetch(targetURL);
-    const latency = Date.now() - startTime;
-    log = {
-      monitorId: host.id,
-      statusCode: response.status,
-      latencyMs: latency,
-      isUp: response.ok,
-    };
-  } catch (error) {
-    const latency = null;
-    log = {
-      monitorId: host.id,
-      latencyMs: latency,
-      errorMsg: error.message,
-    };
-  }
-  return log;
-};
-
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const sendTelegramAlert = async (message) => {
-  if (!TELEGRAM_BOT_TOKEN) {
-    console.log("Telegram alert skipped: TELEGRAM_BOT_TOKEN not set.");
-    return;
-  }
-  const recipients = getAlertRecipients();
-  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-  let requests = recipients.map((recipient) =>
-    fetchWithRetry(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: recipient.chat_id,
-        text: message,
-        parse_mode: "HTML",
-      }),
-    }),
-  );
-  const responses = await Promise.allSettled(requests);
-};
-
-const previousStatuses = new Map();
-const outageAlertCheck = (isUp, host) => {
-  const hostLastStatus = previousStatuses.get(host.id);
-  if (hostLastStatus === undefined && !isUp) {
-    sendTelegramAlert(
-      `🚨 <i>OUTAGE ALERT</i>\nHost <b>${host.name}</b> (${host.url}) is <strong>DOWN</strong>!`,
-    );
-  } else if (hostLastStatus !== undefined && hostLastStatus !== isUp) {
-    // Host status changed, fire a notification.
-    if (!isUp) {
-      sendTelegramAlert(
-        `🚨 <i>OUTAGE ALERT</i>\nHost <b>${host.name}</b> (${host.url}) is <strong>DOWN</strong>!`,
-      );
-    } else {
-      sendTelegramAlert(
-        `✅ <i>RECOVERY NOTICE</i>\nHost <b>${host.name}</b> (${host.url}) is back <b>ONLINE</b>!`,
-      );
-    }
-  }
-  previousStatuses.set(host.id, isUp);
-};
+import { insertLog, getMonitors, getMonitorLastRecord } from "./db.js";
+import { broadcast } from "./services/websocket.js";
+import { checkTCPPort } from "./checkers/tcp.js";
+import { checkICMPPing } from "./checkers/icmp.js";
+import { checkHTTPService } from "./checkers/http.js";
+import { outageAlertCheck } from "./services/alert.js";
 
 const checkHost = async (host) => {
   let logResult = {
@@ -200,7 +50,7 @@ const checkHost = async (host) => {
   }
 };
 
-const hostsBeingChecked = new Map();
+export const hostsBeingChecked = new Map();
 
 const intervalId = setInterval(() => {
   const targetHosts = getMonitors();

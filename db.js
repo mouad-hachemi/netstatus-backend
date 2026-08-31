@@ -63,7 +63,7 @@ const selectLastRecordStmt = db.prepare(
   `,
 );
 const selectMonitorStatusStmt = db.prepare(
-  `SELECT AVG(latency_ms) OVER() AS avg_latency, is_up
+  `SELECT monitor_id, AVG(latency_ms) OVER() AS avg_latency, is_up
   FROM ping_logs
   WHERE monitor_id = ?
   ORDER BY timestamp DESC
