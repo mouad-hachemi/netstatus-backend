@@ -24,3 +24,13 @@ export const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+export const enforcePasswordReset = (req, res, next) => {
+  if (req.user?.firstLogin) {
+    return res.status(403).json({
+      success: false,
+      error: "Password change required before accessing resources.",
+    });
+  }
+  next();
+};

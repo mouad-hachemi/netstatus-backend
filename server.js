@@ -30,8 +30,8 @@ app.get("/", (req, res) => {
   });
 });
 
-app.use("/api/v1", monitorRoutes);
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1", monitorRoutes);
 
 initWebSocket(server);
 

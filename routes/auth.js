@@ -5,7 +5,8 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { getUserByUsername, createUser } from "../db.js";
+import { getUserByUsername, createUser, updateUserPassword } from "../db.js";
+import { authenticateToken } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -52,14 +53,45 @@ router.post("/login", async (req, res) => {
         .json({ success: false, error: "Invalid credentials." });
     }
     const token = jwt.sign(
-      { userId: user.id, username: user.username },
+      {
+        userId: user.id,
+        username: user.username,
+        firstLogin: Boolean(user.first_login),
+      },
       JWT_SECRET,
       { expiresIn: "24h" },
     );
-    res.status(200).json({ success: true, token });
+    res.status(200).json({
+      success: true,
+      token,
+      firstLogin: Boolean(user.first_login),
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+router.post("/change-password", authenticateToken, async (req, res) => {
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 8) {
+    return res.status(400).json({
+      success: false,
+      error: "Password must be at least 8 characters long.",
+    });
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  const changes = updateUserPassword(req.user.userId, hashedPassword);
+  const token = jwt.sign(
+    {
+      ...req.user,
+      firstLogin: false,
+    },
+    JWT_SECRET,
+  );
+  res
+    .status(200)
+    .json({ success: true, message: "Password updated successfuly.", token });
 });
 
 export default router;

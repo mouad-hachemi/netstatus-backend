@@ -11,11 +11,12 @@ import {
   getMonitorStatus,
   insertMonitor,
 } from "../db.js";
-import { authenticateToken } from "../middleware/auth.js";
+import { authenticateToken, enforcePasswordReset } from "../middleware/auth.js";
 
 const router = Router();
+router.use(authenticateToken, enforcePasswordReset);
 
-router.get("/monitors", authenticateToken, (req, res) => {
+router.get("/monitors", (req, res) => {
   // List all targets with their current status and average response.
   const hosts = getMonitors();
   const summary = {};
@@ -26,7 +27,7 @@ router.get("/monitors", authenticateToken, (req, res) => {
   res.status(200).json(summary);
 });
 
-router.post("/monitors", authenticateToken, (req, res) => {
+router.post("/monitors", (req, res) => {
   // Retrieve host info.
   const { name, url, type = "HTTP", port, freq = 60 } = req.body;
 
@@ -45,7 +46,7 @@ router.post("/monitors", authenticateToken, (req, res) => {
   }
 });
 
-router.delete("/monitors/:id", authenticateToken, (req, res) => {
+router.delete("/monitors/:id", (req, res) => {
   const monitorId = req.params.id;
   try {
     const count = deleteMonitor(monitorId);
@@ -60,7 +61,7 @@ router.delete("/monitors/:id", authenticateToken, (req, res) => {
   }
 });
 
-router.get("/monitors/:id/logs", authenticateToken, (req, res) => {
+router.get("/monitors/:id/logs", (req, res) => {
   const monitorId = req.params.id;
   try {
     const { name, logs } = getMonitorLogs(monitorId);
@@ -74,7 +75,7 @@ router.get("/monitors/:id/logs", authenticateToken, (req, res) => {
   }
 });
 
-router.get("/recipients", authenticateToken, (req, res) => {
+router.get("/recipients", (req, res) => {
   try {
     const recipients = getAlertRecipients();
     res.status(200).json({ success: true, recipients });

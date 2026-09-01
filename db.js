@@ -15,7 +15,8 @@ const initDb = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username VARCHAR(32) NOT NULL UNIQUE,
       password_hash VARCHAR(255) NOT NULL,
-      chat_id VARCHAR(64) UNIQUE NOT NULL
+      chat_id VARCHAR(64) NOT NULL UNIQUE,
+      first_login BOOLEAN DEFAULT TRUE
     );
 
     CREATE TABLE IF NOT EXISTS monitors (
@@ -32,7 +33,7 @@ const initDb = () => {
       monitor_id INTEGER,
       status_code INTEGER,
       latency_ms FLOAT,
-      is_up BOOLEAN TRUE,
+      is_up BOOLEAN DEFATULT TRUE,
       timestamp INTEGER DEFAULT (unixepoch()),
       FOREIGN KEY (monitor_id) REFERENCES monitors(id) ON DELETE CASCADE
     );
@@ -110,6 +111,13 @@ const selectUserByUsernameStmt = db.prepare(
   `SELECT * FROM users WHERE username = ?;`,
 );
 
+const updateUserPasswordStmt = db.prepare(
+  `UPDATE users
+  SET first_login = FALSE, password_hash = ? 
+  WHERE id = ?;
+  `,
+);
+
 const selectUserById = db.prepare(`SELECT * FROM users WHERE id = ?;`);
 
 export const insertLog = ({
@@ -185,4 +193,9 @@ export const getUserByUsername = (username) => {
 export const getUserById = (id) => {
   const result = selectUserById.get(id);
   return result;
+};
+
+export const updateUserPassword = (id, newPasswordHash) => {
+  const result = updateUserPasswordStmt.run(newPasswordHash, id);
+  return result.changes;
 };
