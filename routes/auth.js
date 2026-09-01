@@ -84,10 +84,12 @@ router.post("/change-password", authenticateToken, async (req, res) => {
   const changes = updateUserPassword(req.user.userId, hashedPassword);
   const token = jwt.sign(
     {
-      ...req.user,
+      userId: req.user.userId,
+      username: req.user.username,
       firstLogin: false,
     },
     JWT_SECRET,
+    { expiresIn: "24h" },
   );
   res
     .status(200)
