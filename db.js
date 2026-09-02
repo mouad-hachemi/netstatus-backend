@@ -74,11 +74,11 @@ const selectMonitorStatusStmt = db.prepare(
 
 const selectMonitorsLogsStms = db.prepare(
   `
-  SELECT status_code, latency_ms, is_up
+  SELECT status_code, latency_ms, is_up, timestamp
   FROM ping_logs
   WHERE monitor_id = ?
   ORDER BY timestamp DESC
-  LIMIT 50;
+  LIMIT ?;
   `,
 );
 
@@ -163,9 +163,9 @@ export const getMonitorStatus = (monitor) => {
   return result || {};
 };
 
-export const getMonitorLogs = (monitorId) => {
+export const getMonitorLogs = (monitorId, maxRows = 50) => {
   const name = selectMonitorName.get(monitorId)?.name;
-  const logs = selectMonitorsLogsStms.all(monitorId);
+  const logs = selectMonitorsLogsStms.all(monitorId, maxRows);
   return { name, logs };
 };
 

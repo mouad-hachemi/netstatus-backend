@@ -22,7 +22,9 @@ router.get("/monitors", (req, res) => {
   const summary = {};
   for (const host of hosts) {
     const status = getMonitorStatus(host);
-    summary[host.name] = status;
+    const { logs } = getMonitorLogs(status.monitor_id, 10);
+    const history = logs.map((log) => log.latency_ms || 0).reverse();
+    summary[host.name] = { ...status, history };
   }
   res.status(200).json(summary);
 });
