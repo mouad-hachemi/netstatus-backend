@@ -24,7 +24,7 @@ export const initWebSocket = (server) => {
     }
 
     jwt.verify(token, JWT_SECRET, (err, decodedUser) => {
-      if (err || decodedUser.firstLogin || !getUserById(decodedUser.userId)) {
+      if (err || !getUserById(decodedUser.userId)) {
         console.log("WebSocket connection rejected: Invalid or expired token.");
         ws.close(4003, "Invalid or expired token.");
         return;
