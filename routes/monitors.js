@@ -22,7 +22,7 @@ router.get("/monitors", (req, res) => {
   const summary = {};
   for (const host of hosts) {
     const status = getMonitorStatus(host);
-    const { logs } = getMonitorLogs(status.monitor_id, 10);
+    const { logs } = getMonitorLogs(host.id, 10);
     const history = logs.map((log) => log.latency_ms || 0).reverse();
     summary[host.name] = { ...status, history };
   }
@@ -41,7 +41,7 @@ router.post("/monitors", (req, res) => {
   }
 
   try {
-    insertMonitor({ name, url, type, port, freq });
+    insertMonitor({ name, url, type, port, freq: Number(freq) });
     res.status(201).json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false });
