@@ -64,8 +64,10 @@ const selectLastRecordStmt = db.prepare(
   `,
 );
 const selectMonitorStatusStmt = db.prepare(
-  `SELECT monitor_id, AVG(latency_ms) OVER() AS avg_latency, is_up
+  `SELECT monitor_id, AVG(latency_ms) OVER() AS avg_latency, is_up, type, port
   FROM ping_logs
+  INNER JOIN monitors
+  ON ping_logs.monitor_id = monitors.id
   WHERE monitor_id = ?
   ORDER BY timestamp DESC
   LIMIT 1;
