@@ -6,13 +6,13 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { getUserByUsername, createUser, updateUserPassword } from "../db.js";
-import { authenticateToken } from "../middleware/auth.js";
+import { authenticateToken, authLimiter } from "../middleware/auth.js";
 
 const router = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || "you-cant-guess-this";
 
-router.post("/register", async (req, res) => {
+router.post("/register", authLimiter, async (req, res) => {
   const { username, password, chat_id: chatId } = req.body;
   if (!username || !password) {
     return res
@@ -36,7 +36,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   const { username, password } = req.body;
   try {
     const user = getUserByUsername(username);

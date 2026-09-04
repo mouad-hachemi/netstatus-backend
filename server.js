@@ -6,9 +6,9 @@ import monitorRoutes from "./routes/monitors.js";
 import authRoutes from "./routes/auth.js";
 
 const app = express();
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 
-const server = http.createServer(app);
+export const server = http.createServer(app);
 
 app.use(express.json());
 app.use(

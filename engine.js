@@ -50,7 +50,7 @@ const checkHost = async (host) => {
   }
 };
 
-export const hostsBeingChecked = new Map();
+const hostsBeingChecked = new Map();
 
 const intervalId = setInterval(() => {
   const targetHosts = getMonitors();
@@ -70,3 +70,5 @@ const intervalId = setInterval(() => {
     }
   }
 }, 1000);
+
+export const activeTimers = [intervalId];

@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
 import { getUserById } from "../db.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "you-cant-guess-this";
@@ -34,3 +35,14 @@ export const enforcePasswordReset = (req, res, next) => {
   }
   next();
 };
+
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: {
+    success: false,
+    error: "Too many attempts, please try again later",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});

@@ -8,7 +8,7 @@ import url from "node:url";
 import { getUserById } from "../db.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "you-cant-guess-this";
-let wss;
+export let wss;
 
 export const initWebSocket = (server) => {
   wss = new WebSocketServer({ server });
