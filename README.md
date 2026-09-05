@@ -49,16 +49,22 @@ Create a `.env` file in the root directory:
 ```text
 PORT=8080
 JWT_SECRET=your_super_secret_jwt_key
+TELEGRAM_ID = your_telegram_id
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+INITIAL_ADMIN_USER = optional
+INITIAL_ADMIN_PASS = optional
 ```
 
-### 4. Running the Backend
+### 4. Running Seed Script and the Backend
 
 ```bash
-# Classic run without hot restart.
+# Seed the initial admin user.
+node seedAdmin.js
+
+# Run the backend without hot restart.
 node app.js
 
-# Run with host restart (detect changes).
+# Or run with host restart (detect changes).
 nodemon app.js
 ```
 
